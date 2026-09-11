@@ -7,10 +7,17 @@ description: Analyzes this repository and generates/updates a High-Level Design 
 
 You are acting as a documentation engineer. Your job is to keep this repository's
 architecture documentation accurate and current by analyzing the current state of
-the code and updating two documents:
+the code and updating two documents **in the same run**:
 
 - `docs/HLD.md` — High-Level Design
 - `docs/LLD.md` — Low-Level Design
+
+**Both documents are always produced together.** A single invocation of this
+skill generates or updates BOTH `docs/HLD.md` and `docs/LLD.md`, writes both to
+the repo's `docs/` folder, and (if there are changes) includes both in one
+pull request. Never generate one without the other, never split them across
+separate runs or PRs, and do not stop after the HLD without also completing the
+LLD.
 
 ## Audience
 
@@ -47,94 +54,77 @@ tables over long paragraphs. No marketing language.
 ## Mermaid Syntax Rules (avoid rendering errors)
 
 Mermaid is strict, and GitHub's renderer gives no partial credit — one bad
-character anywhere in the diagram breaks the entire diagram. Apply every rule
-below, not just the ones that have caused failures before.
+character anywhere in the diagram breaks the entire diagram.
 
-### A. Node labels
+### The one rule that prevents most failures
 
-1. **Never start a node label with a shape-reserved character.** Characters
-   like `/`, `\`, `(`, `[`, `{`, `>` immediately after the opening bracket are
-   reserved for special node shapes (trapezoid, parallelogram, rounded,
-   subroutine, rhombus, etc.). `[/auth,/users,/tasks]` is invalid for this
-   reason. If your text needs to start with one of these characters, wrap the
-   whole label in double quotes: `["/auth, /users, /tasks"]`.
-2. **Wrap any label containing punctuation in double quotes.** This includes
-   commas, slashes, parentheses, colons, semicolons, ampersands, and angle
-   brackets. Example: `A["API Layer: /auth, /users, /tasks"]`.
-3. **Never put a literal double quote inside a double-quoted label.** Mermaid
-   has no escape character for `"` inside a quoted string. Rephrase instead
-   of quoting text within a label (e.g. write `the config value` instead of
-   `"config"`).
-4. **Never use a raw line break inside a label.** Use `<br/>` for a line
-   break within a node label, never an actual newline character.
-5. **Don't redefine a node's shape twice.** Once a node ID has been given a
-   shape (e.g. `A["Text"]`), later references should use just the ID (`A`),
-   not redeclare it with a different bracket type (e.g. `A(("Text"))`) —
-   conflicting shape declarations for the same ID cause errors.
-6. **Node IDs themselves must not contain spaces or punctuation.** The ID is
-   the part before the bracket; only the label text inside the brackets can
-   contain spaces. Bad: `My Node["Text"]`. Good: `MyNode["Text"]`.
+**Always wrap every node label and every edge label in double quotes — with no
+exceptions, even for a single plain word.** Quoting a label that would not
+strictly need it is always safe. NOT quoting a label that contains punctuation
+breaks the whole diagram. Do not try to judge whether a given label "needs"
+quotes — just quote all of them, every time.
 
-### B. Edge labels
+- Node label: write `A["API Layer"]`, never `A[API Layer]` and never
+  `A[API Layer: /auth, /users]`.
+- Edge label: write `A -->|"HTTPS"| B`, never `A -->|HTTPS| B`.
 
-7. **The same punctuation rule applies to edge labels** (the text between
-   pipes in `-->|label|`), and it's easy to fix node labels while forgetting
-   this. `-->|HTTPS (browser)|` is invalid; use `-->|"HTTPS (browser)"|`, or
-   better, simplify to `-->|HTTPS|` and move the nuance into surrounding
-   prose.
-8. **Use a real arrow syntax.** In `flowchart` diagrams, valid arrows are
-   `-->`, `---`, `-.->`, `==>`, and similar two/three-character forms. A
-   single-character arrow like `->` is invalid in flowchart syntax.
-9. **Keep arrow style consistent within one diagram** unless the style
-   difference is intentional (e.g. dashed for async, solid for sync) — and if
-   so, note that convention once in the surrounding prose.
+This single habit eliminates the most common parse error, which comes from
+punctuation (commas, slashes, parentheses, colons, ampersands, angle brackets)
+in an unquoted label. For example:
 
-### C. Reserved words
+- BROKEN: `Auth -->|DB queries (Devices/ApiKeys/Users)| DB`
+- SAFE:   `Auth -->|"DB queries (Devices/ApiKeys/Users)"| DB`
 
-10. **Never use a Mermaid reserved word as a node ID or subgraph ID.** This
-    includes `end`, `graph`, `flowchart`, `subgraph`, `class`, `style`,
-    `click`, `direction`. `end` is the most common accidental collision (e.g.
-    a node meant to represent "Endpoint" or "End User" abbreviated as `end`
-    breaks the parser). Use a different ID like `EndUser` or `Endpoint`, and
-    put "End" only in the label text if needed.
+### Remaining rules (still apply even with everything quoted)
 
-### D. Structure
+1. **Never put a literal double quote inside a double-quoted label.** Mermaid
+   has no escape for `"` inside a quoted string. Rephrase instead — write
+   `the config value` rather than `"config"`.
+2. **Never use a raw line break inside a label.** Use `<br/>` for a line break
+   within a label, never an actual newline character.
+3. **Don't redefine a node's shape twice.** Once a node ID has been given a
+   shape (e.g. `A["Text"]`), later references use just the ID (`A`), never a
+   different bracket type (e.g. `A(("Text"))`).
+4. **Node IDs must not contain spaces or punctuation.** The ID is the part
+   before the bracket; only the quoted label may contain spaces/punctuation.
+   Bad: `My Node["Text"]`. Good: `MyNode["Text"]`.
+5. **Use real arrow syntax.** In `flowchart` diagrams, valid arrows are `-->`,
+   `---`, `-.->`, `==>`, and similar two/three-character forms. A single-
+   character arrow like `->` is invalid in flowchart syntax.
+6. **Never use a Mermaid reserved word as a node ID or subgraph ID**, including
+   `end`, `graph`, `flowchart`, `subgraph`, `class`, `style`, `click`,
+   `direction`. `end` is the most common accidental collision — use `EndUser`
+   or `Endpoint`, and put "End" only in the quoted label text.
+7. **One node or edge statement per line.** Do not chain declarations with
+   commas on a single line.
+8. **Comments on their own line**, using `%%` at the start — never appended
+   after a node/edge definition.
+9. **Declare direction once** (`flowchart TB`, `TD`, `LR`, `BT`, `RL`) at the
+   top; don't mix direction keywords mid-diagram.
+10. **classDef/class names are simple identifiers** (letters, digits,
+    underscores only).
 
-11. **One node or edge statement per line.** Do not chain multiple
-    declarations with commas on a single line.
-12. **Comments must be on their own line**, using `%%` at the start of the
-    line — never appended after a node/edge definition on the same line.
-13. **Declare a consistent direction once** (`flowchart TB`, `TD`, `LR`, `BT`,
-    or `RL`) at the top; don't mix direction keywords mid-diagram.
-14. **classDef and class names must be simple identifiers** (letters, digits,
-    underscores only) — no spaces or punctuation in a `classDef` name.
+### Sequence diagrams (used in the LLD workflow diagrams)
 
-### E. Sequence diagrams (used in the LLD's workflow diagrams)
-
-15. **Participant names with spaces need an alias**: use
-    `participant WC as "Web Client"`, then refer to `WC` in messages — never
-    a bare multi-word name directly in a message line.
-16. **Never use a reserved word as a participant alias**, including `end`,
+11. **Quote every participant display name**, and alias any multi-word name:
+    `participant WC as "Web Client"`, then use `WC` in messages — never a bare
+    multi-word name in a message line.
+12. **Never use a reserved word as a participant alias**, including `end`,
     `loop`, `alt`, `opt`, `par`, `rect`, `note`, `activate`, `deactivate`.
-17. **Message text (after the colon) must not contain an unescaped colon.**
-    The first colon in a message line separates the arrow from the message
-    text; a second literal colon later in the same line can break parsing.
-    Rephrase to avoid a second colon, or use the HTML entity `#58;`.
-18. **Use valid arrow types only**: `->>`, `-->>`, `-)`, `--)`, `-x`, `--x`,
-    or `->`/`-->` for the two solid/dashed base forms — don't invent
-    variants.
-19. **Every `activate` must have a matching `deactivate`** for the same
-    participant, in the correct order — unbalanced activation blocks break
-    rendering.
+13. **Message text (after the colon) must not contain a second unescaped
+    colon.** The first colon separates the arrow from the message; a later
+    literal colon can break parsing. Rephrase, or use the HTML entity `#58;`.
+14. **Use valid arrow types only**: `->>`, `-->>`, `-)`, `--)`, `-x`, `--x`, or
+    `->`/`-->` for the base solid/dashed forms — don't invent variants.
+15. **Every `activate` needs a matching `deactivate`** for the same
+    participant, in the correct order.
 
-### F. Final check
+### Final check
 
-20. **Before finalizing any diagram, re-parse it mentally line by line** and
-    confirm: every node label and edge label is either a bare word/short
-    phrase with zero punctuation, or fully wrapped in double quotes; no
-    reserved words are used as IDs; arrows are valid two/three-character
-    forms; and (for sequence diagrams) every alias is declared before use and
-    every activation is closed.
+Before finalizing any diagram, re-read it once and confirm: every node label
+and every edge label is wrapped in double quotes; no reserved words are used as
+IDs; arrows are valid two/three-character forms; and (for sequence diagrams)
+every alias is declared before use and every activation is closed.
 
 Example of a safe layered flowchart opening:
 
@@ -146,7 +136,7 @@ flowchart TB
     subgraph API
         Gateway["API Gateway: /auth, /users, /tasks"]
     end
-    UI -->|HTTPS| Gateway
+    UI -->|"HTTPS"| Gateway
 ```
 
 Example of a safe sequence diagram opening:
@@ -214,27 +204,32 @@ additions/removals at the top of the Change Log.
 
 ## Process
 
+Run these steps once, producing both documents together:
+
 1. Read the current `docs/HLD.md` and `docs/LLD.md` if they exist, along with
    any existing Change Log entries, to understand what was last documented.
-2. Inventory the repository: file tree, README, dependency manifests
+2. Inventory the repository ONCE: file tree, README, dependency manifests
    (`package.json`, `pyproject.toml`, `go.mod`, etc.), Dockerfiles, CI configs,
-   IaC, and `.env.example`/similar files.
+   IaC, and `.env.example`/similar files. Do not re-inventory repeatedly — one
+   pass is enough; note anything you couldn't determine as "Not determined from
+   repository" and move on.
 3. Identify what is new, changed, or removed relative to what's currently
    documented.
-4. Update only the affected sections of `docs/HLD.md` and `docs/LLD.md`
+4. Update the affected sections of **both** `docs/HLD.md` and `docs/LLD.md`
    following the structures above. If bootstrapping (no existing docs),
-   generate both in full.
+   generate both in full. Do not finish the HLD and stop — the LLD is part of
+   the same run.
 5. Append a dated Change Log entry in both documents summarizing what was
    updated and why.
-6. Write the files to disk. Create the `docs/` folder if it does not exist,
+6. Write both files to disk. Create the `docs/` folder if it does not exist,
    and write/update `docs/HLD.md` and `docs/LLD.md` directly in the working
    tree.
-7. If there are no actual changes to `docs/HLD.md` or `docs/LLD.md` compared
-   to what's already committed, stop here — do not create a branch or PR.
-8. If there are changes, open a pull request:
+7. If neither file changed compared to what's already committed, stop here —
+   do not create a branch or PR.
+8. If either file changed, open a single pull request containing both:
    - Create a new branch named `docs/auto-hld-<YYYYMMDD-HHMM>` off the
      default branch.
-   - Commit the changed files with a message like
+   - Commit both changed files with a message like
      `docs: automated HLD/LLD update <date>`.
    - Push the branch and open a pull request against the default branch,
      titled `docs(hld): automated update <date>`, with the label
